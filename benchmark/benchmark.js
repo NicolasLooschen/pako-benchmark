@@ -35,6 +35,39 @@ fs.readdirSync(IMPLS_DIRECTORY).sort().forEach(function (name) {
 const SAMPLES_DIRECTORY = path.join(__dirname, 'samples');
 const SAMPLES = [];
 
+// https://stackoverflow.com/a/45309555
+function median(values) {
+
+  if (values.length === 0) {
+    throw new Error('Input array is empty');
+  }
+
+  // Sorting values, preventing original array
+  // from being mutated.
+  values = [...values].sort((a, b) => a - b);
+
+  const half = Math.floor(values.length / 2);
+
+  return (values.length % 2
+          ? values[half]
+          : (values[half - 1] + values[half]) / 2
+  );
+}
+
+// https://stackoverflow.com/a/55297611
+const asc = arr => arr.sort((a, b) => a - b);
+const quantile = (arr, q) => {
+  const sorted = asc(arr);
+  const pos = (sorted.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sorted[base + 1] !== undefined) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  } else {
+    return sorted[base];
+  }
+};
+
 fs.readdirSync(SAMPLES_DIRECTORY).sort().forEach(function (sample) {
   const filepath = path.join(SAMPLES_DIRECTORY, sample);
   const extname  = path.extname(filepath);
@@ -76,7 +109,9 @@ fs.readdirSync(SAMPLES_DIRECTORY).sort().forEach(function (sample) {
       onCycle: function onCycle(event) {
         cursor.horizontalAbsolute();
         cursor.eraseLine();
-        cursor.write(' > ' + event.target);
+        if(event.target.stats.sample.length > 0){
+        cursor.write(' > ' + event.target + ` median: ${(median(event.target.stats.sample) * 1000).toFixed(3)}ms (25th quantile: ${(quantile(event.target.stats.sample, 0.25) * 1000).toFixed(3)}ms, 75th quantile: ${(quantile(event.target.stats.sample, 0.75) * 1000).toFixed(3)}ms)`)
+        };
       },
 
       onComplete: onComplete,
@@ -85,10 +120,9 @@ fs.readdirSync(SAMPLES_DIRECTORY).sort().forEach(function (sample) {
 
       fn: function (deferred) {
         if (impl.code.async) {
-          impl.code.run(content, LEVEL, function () {
+          impl.code.run(content).then(() => {
             deferred.resolve();
-            return;
-          });
+          })
         } else {
           impl.code.run(content, LEVEL);
           return;
